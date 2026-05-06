@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: Tracking-orders
+  datasource:
+    username: root
+    password: Dinhminhchien@123
+    url: jdbc:mysql://localhost:3306/product_manager
+server:
+  error:
+    include-exception: true
+    include-message: always
+    include-binding-errors: always
+  port: 8001
+logging:
+  level:
+    org:
+      hibernate:
+        SQL: DEBUG
+
