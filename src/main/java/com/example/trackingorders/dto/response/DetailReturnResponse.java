@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class DetailReturnResponse implements Serializable {
-    private OrdersResponse orders ;
+    private OrderDetailResponse orders ;
     private String reason ;
     private LocalDateTime receivedAt ;
     private OriginType originType ;

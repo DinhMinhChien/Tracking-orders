@@ -24,7 +24,9 @@ public class OrdersRequest implements Serializable {
     @NotBlank(message = "Field promotionId is not null")
     private String promotionId ;
 
+    @NotBlank(message = "Field addressId is not null")
     private String addressId ;
 
+    @NotBlank(message = "Field isFromCart is not null")
     private Boolean isFromCart ;
 }

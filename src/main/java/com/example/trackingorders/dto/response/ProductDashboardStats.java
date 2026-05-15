@@ -12,7 +12,7 @@ import java.math.BigDecimal;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class ProductDashboardStatis implements Serializable {
+public class ProductDashboardStats implements Serializable {
     private BigDecimal totalInventoryValue;
     private Integer totalProductCount;
     private Integer lowStockCount;

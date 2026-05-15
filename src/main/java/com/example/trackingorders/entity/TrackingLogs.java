@@ -28,12 +28,10 @@ public class TrackingLogs extends BaseEntity implements Serializable {
     private String orderId ;
 
     @Column(name = "from_status")
-    @Enumerated(EnumType.STRING)
-    private StatusOrderEnum fromStatus ;
+    private String fromStatus ;
 
     @Column(name = "to_status")
-    @Enumerated(EnumType.STRING)
-    private StatusOrderEnum toStatus ;
+    private String toStatus ;
 
     @Column(name = "note")
     private String note ;

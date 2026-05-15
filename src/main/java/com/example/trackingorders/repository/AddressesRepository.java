@@ -7,6 +7,6 @@ import org.springframework.data.jpa.repository.Query;
 import java.util.List;
 
 public interface AddressesRepository extends JpaRepository<Addresses,String> {
-    @Query("select a from Addresses a join a.users u where u.username = :username")
+    @Query("select a from Addresses a join a.users u where u.username = :username and a.deleted = false ")
     List<Addresses> findByUserName(String username) ;
 }

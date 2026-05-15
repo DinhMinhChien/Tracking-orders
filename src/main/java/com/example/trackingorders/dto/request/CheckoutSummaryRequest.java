@@ -22,5 +22,4 @@ public class CheckoutSummaryRequest implements Serializable {
     private List<Integer> quantities ;
 
     private String promotionId ;
-
 }

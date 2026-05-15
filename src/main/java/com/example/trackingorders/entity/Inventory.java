@@ -27,4 +27,7 @@ public class   Inventory extends BaseEntity implements Serializable {
 
     @Column(name = "quantity")
     private Integer quantity ;
+
+    @Version
+    private Integer version ;
 }

@@ -80,4 +80,22 @@ public class ReturnsController {
         response.getOutputStream().write(excelBytes);
         response.flushBuffer();
     }
+
+    @PostMapping("/admin/{returnId}/confirm")
+    public ResponseEntity<BaseResponse<String>> confirm(@PathVariable String returnId, @RequestBody StatusReturnEnum status ) {
+        returnsService.confirm(returnId,status) ;
+        return ResponseEntity.ok(BaseResponse.ofSuccess("Confirm success")) ;
+    }
+
+    @PostMapping("/admin/{returnId}/reject")
+    public ResponseEntity<BaseResponse<String>> reject(@PathVariable String returnId, @RequestBody StatusReturnEnum status) {
+        returnsService.reject(returnId,status) ;
+        return ResponseEntity.ok(BaseResponse.ofSuccess("Reject return success")) ;
+    }
+
+    @GetMapping("/admin/{returnId}/return-success")
+    public ResponseEntity<BaseResponse<String>> returnsSuccess(@PathVariable String returnId) {
+        returnsService.returnsSuccess(returnId) ;
+        return ResponseEntity.ok(BaseResponse.ofSuccess("Return order success")) ;
+    }
 }

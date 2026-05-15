@@ -5,7 +5,7 @@ import com.example.trackingorders.dto.ProductsExportDTO;
 import com.example.trackingorders.dto.request.ProductCreateRequest;
 import com.example.trackingorders.dto.request.ProductsUpdateRequest;
 import com.example.trackingorders.dto.response.ProductCreateResponse;
-import com.example.trackingorders.dto.response.ProductDashboardStatis;
+import com.example.trackingorders.dto.response.ProductDashboardStats;
 import com.example.trackingorders.dto.response.ProductsResponse;
 import com.example.trackingorders.entity.Inventory;
 import com.example.trackingorders.entity.Products;
@@ -20,17 +20,17 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
-import org.springframework.security.access.method.P;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-@Transactional
+@Transactional(rollbackFor = Exception.class)
 public class ProductsServiceImplement implements ProductsService {
     private final ProductsRepository productsRepository ;
     private final InventoryRepository inventoryRepository ;
@@ -73,35 +73,51 @@ public class ProductsServiceImplement implements ProductsService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Page<ProductsResponse> getAll(StatusProductsEnum status, String keyword,Boolean isFeature, int pageNumber, int pageSize) {
         Pageable pageable = PageRequest.of(pageNumber-1,pageSize) ;
         Specification<Products> specification = Specification.where(null) ;
         if (status != null) {
             specification = specification.and(ProductsSpecification.likeStatus(status)) ;
         }
-        if (keyword != null || !keyword.isEmpty()) {
+        if (keyword != null ) {
             specification = specification.and(ProductsSpecification.likeSku(keyword)) ;
         }
         if (isFeature != null) {
             specification = specification.and(ProductsSpecification.EqualIsFeature(isFeature));
         }
         Page<Products> products = productsRepository.findAll(specification,pageable) ;
+        List<Inventory> inventories = inventoryRepository.findInventoriesByProducts(products.stream().toList()) ;
+
+        Map<String, Inventory> inventoryMap = inventories.stream()
+                .collect(Collectors.toMap(
+                        inv -> inv.getProducts().getId(),
+                        inv -> inv,
+                        (existing, replacement) -> existing
+                ));
+
         Page<ProductsResponse> responses = products.map(entity -> {
-            Inventory inventory = inventoryRepository.findInventoriesByProducts(entity) ;
-            return productsMapper.toProductResponse(entity,inventory);
-        }
+                Inventory inventory = inventoryMap.get(entity.getId()) ;
+                return productsMapper.toProductResponse(entity,inventory);
+            }
         ) ;
         return responses ;
     }
 
     @Override
-    public ProductDashboardStatis getStatis() {
-        ProductDashboardStatis response = productsRepository.getInventoryDashboardStats() ;
+    @Transactional(readOnly = true)
+    public ProductDashboardStats getStats() {
+        ProductDashboardStats response = productsRepository.getInventoryDashboardStats() ;
         return response;
     }
 
     @Override
+    @Transactional(readOnly = true)
     public ProductsResponse getDetail(String id) {
+        if (id == null) {
+            throw new BusinessException("Field id is null") ;
+        }
+
         Optional<Products> productsOptional = productsRepository.findById(id) ;
 
         if (productsOptional.isEmpty()) {
@@ -136,6 +152,7 @@ public class ProductsServiceImplement implements ProductsService {
         Inventory inventory = inventoryRepository.findInventoriesByProducts(product) ;
         inventory.setQuantity(request.getQuantity());
         Products productSave = productsRepository.save(product) ;
+
         inventoryRepository.save(inventory) ;
         ProductsResponse response = productsMapper.toProductResponse(productSave,inventory) ;
 
@@ -143,6 +160,7 @@ public class ProductsServiceImplement implements ProductsService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<ProductsExportDTO> getDataForExport(StatusProductsEnum status, String keyword) {
         Specification<Products> specification = Specification.where(null) ;
         if (status != null) {
@@ -152,10 +170,14 @@ public class ProductsServiceImplement implements ProductsService {
             specification = specification.and(ProductsSpecification.likeSku(keyword)) ;
         }
         List<Products> products = productsRepository.findAll(specification) ;
-        List<ProductsExportDTO> productsExportDTOs = products.stream().map(product -> {
-            Inventory inventory = inventoryRepository.findInventoriesByProducts(product);
-            return productsMapper.toExportDTO(product,inventory) ;
-        }).toList() ;
+        List<Inventory> inventories = inventoryRepository.findInventoriesByProducts(products) ;
+        Map<String, Inventory> inventoryMap = inventories.stream()
+                .collect(Collectors.toMap(
+                        inv -> inv.getProducts().getId(),
+                        inv -> inv,
+                        (existing, replacement) -> existing
+                ));
+        List<ProductsExportDTO> productsExportDTOs = products.stream().map(product -> productsMapper.toExportDTO(product,inventoryMap.get(product.getId()))).toList();
         return productsExportDTOs ;
     }
 }

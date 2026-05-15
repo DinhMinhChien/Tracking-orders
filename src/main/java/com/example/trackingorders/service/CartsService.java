@@ -8,5 +8,5 @@ import java.util.List;
 public interface CartsService {
     List<CartItemResponse> getMyCart() ;
     CartItemResponse updateCartItem(String cartItemId,CartItemUpdateRequest request) ;
-    Void deleteCartItem(String id) ;
+    void deleteCartItem(String id) ;
 }

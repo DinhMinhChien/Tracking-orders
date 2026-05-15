@@ -7,9 +7,9 @@ import com.example.trackingorders.entity.*;
 import com.example.trackingorders.exception.BusinessException;
 import com.example.trackingorders.mapper.*;
 import com.example.trackingorders.repository.*;
-import com.example.trackingorders.service.CheckoutService;
-import com.example.trackingorders.service.OrdersService;
+import com.example.trackingorders.service.*;
 import com.example.trackingorders.service.specfication.OrderSpecification;
+import com.example.trackingorders.util.ProductQuantityUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -19,14 +19,13 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-import java.util.Random;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
-@Transactional
+@Transactional(rollbackFor = Exception.class)
 public class OrdersServiceImplement implements OrdersService {
     private final CheckoutService checkoutService ;
     private final OrdersMapper ordersMapper ;
@@ -38,21 +37,26 @@ public class OrdersServiceImplement implements OrdersService {
     private final OrdersRepository ordersRepository ;
     private final CartItemsRepository cartItemsRepository ;
     private final OrderItemsRepository orderItemsRepository ;
-    private final InventoryRepository inventoryRepository ;
-    private final OrderItemsMapper orderItemsMapper;
-    private final TrackingLogsRepository trackingLogsRepository ;
     private final ProductsRepository productsRepository ;
+    private final InventoryService inventoryService ;
+    private final TrackingLogsService trackingLogsService ;
+    private final PromotionService promotionService;
 
     @Override
-    public OrdersResponse create(OrdersRequest request) {
+    public OrderDetailResponse create(OrdersRequest request) {
 
+        //Lấy dữ liệu từ request
         String username = SecurityContextHolder.getContext().getAuthentication().getName() ;
-        List<String> productIds = request.getProductIds() ;
-        List<Integer> quantities = request.getQuantities();
+
         String promotionId = request.getPromotionId() ;
         String addressId = request.getAddressId() ;
         Boolean isFromCart = request.getIsFromCart();
 
+        List<String> productIds = request.getProductIds() ;
+        List<Integer> quantities = request.getQuantities();
+        Map<String, Integer> quantityByProductId = ProductQuantityUtils.toQuantityByProductId(productIds, quantities) ;
+
+        //Tạo các thuộc tính gắn vào đơn hàng
         Users user = usersRepository.findByUsername(username) ;
         PaymentMethods paymentMethod = paymentMethodsRepository.findPaymentMethodsByType("COD") ;
         Promotions promotion = promotionsRepository.findById(promotionId).get();
@@ -65,6 +69,7 @@ public class OrdersServiceImplement implements OrdersService {
 
         CheckoutSummaryResponse checkout = checkoutService.getSummary(ordersMapper.toCheckout(request)) ;
 
+        //set các thuộc tính cho đơn hàng
         Orders order = new Orders() ;
         order.setUsers(user);
         order.setPaymentMethod(paymentMethod);
@@ -81,122 +86,158 @@ public class OrdersServiceImplement implements OrdersService {
         List<OrderItems> orderItems = new ArrayList<>() ;
         List<Products> products = productsRepository.findAllById(productIds) ;
 
+        ProductQuantityUtils.validateAllProductsFound(products, quantityByProductId) ;
+
         //thêm vào orderItems
-        for(int i = 0 ;i < products.size();i++) {
+        for(Products product : products) {
             OrderItems orderItem = new OrderItems() ;
 
             orderItem.setOrders(order);
-            orderItem.setProducts(products.get(i));
-            orderItem.setQuantity(quantities.get(i));
-            orderItem.setPrice(products.get(i).getPrice());
+            orderItem.setProducts(product);
+            orderItem.setQuantity(quantityByProductId.get(product.getId()));
+            orderItem.setPrice(product.getPrice());
 
             orderItems.add(orderItem) ;
         }
-
         orderItemsRepository.saveAll(orderItems) ;
 
-        //thêm log cho đơn hàng này ở trạng thái PENDING
-        TrackingLogs log = new TrackingLogs() ;
-        log.setOrderId(order.getId());
-        log.setToStatus(StatusOrderEnum.PENDING);
-        log.setNote("Đơn hàng đang chờ xác nhận");
-        trackingLogsRepository.save(log) ;
+        //Thêm log cho đơn hàng này ở trạng thái PENDING
+        trackingLogsService.createLog(
+                order.getId(),
+                null,
+                StatusOrderEnum.PENDING.toString(),
+                "Đơn hàng đang chờ xác nhận",
+                null
+        ) ;
 
-
-        // Xoá các cartItem ra cart sau khi đã đặt hàng
-//        for (CartItems items : cartItems) {
-//            items.setDeleted(true);
-//            products.add(items.getProducts()) ;
-//            quantities.add(items.getQuantity()) ;
-//        }
-//        cartItemsRepository.saveAll(cartItems) ;
-
-        // Giảm quantity của product sau khi đã đặt hàng
-        for (int i = 0;i < products.size();i++) {
-            inventoryRepository.decreaseStockQuantity(products.get(i),quantities.get(i));
+        //xoá sản phẩm khỏi giỏ hàng nếu đơn tạo từ giỏ hàng
+        if (isFromCart == true) {
+            cartItemsRepository.removeCartItemsByProducts(products,user) ;
         }
 
-        // Giảm sô lượt sử dụng của voucher
-        //todo sử dụng updatedAt để xử lí tranh chấp nếu 2 người cùng dung voucher này
-        promotionsRepository.decreaseUsagesLimit(promotionId);
+        // Giảm quantity của product sau khi đã đặt hàng
+        inventoryService.decreaseStock(products,quantityByProductId);
 
-        OrdersResponse response = ordersMapper.toResponse(order) ;
+        // Giảm sô lượt sử dụng của voucher
+        promotionService.usePromotion(user,promotion,order);
+
+        OrderDetailResponse response = ordersMapper.toResponse(order) ;
         return response;
     }
 
     @Override
-    public OrdersResponse getDetail(String id) {
+    @Transactional(readOnly = true)
+    public OrderDetailResponse getDetail(String id) {
+
         if (id == null || id.isEmpty()) {
             throw new BusinessException("Field id is null") ;
         }
+
         Optional<Orders> ordersOptional = ordersRepository.findById(id) ;
-        if (ordersOptional == null || ordersOptional.isEmpty()) {
+        if (ordersOptional.isEmpty()) {
             throw new BusinessException("Not found order") ;
         }
-        OrdersResponse response = ordersMapper.toResponse(ordersOptional.get()) ;
+        OrderDetailResponse response = ordersMapper.toResponse(ordersOptional.get()) ;
         return response ;
     }
 
     @Override
+    @Transactional(readOnly = true)
     public OrderDashboardStats getHeaderStats() {
-        OrderDashboardStats response = ordersRepository.getDashboardStatistics() ;
-        return response ;
+        LocalDateTime startOfMonth = LocalDate.now().withDayOfMonth(1).atStartOfDay() ;
+
+        return new OrderDashboardStats(
+                ordersRepository.sumMonthToDateRevenue(startOfMonth, StatusOrderEnum.FAILED),
+                ordersRepository.countByDeletedFalse(),
+                ordersRepository.countByStatusAndDeletedFalse(StatusOrderEnum.PENDING),
+                ordersRepository.countByStatusAndDeletedFalse(StatusOrderEnum.SHIPPING),
+                ordersRepository.countByStatusAndDeletedFalse(StatusOrderEnum.FAILED)
+        ) ;
     }
 
     @Override
-    public Page<OrdersResponse> getAll(int pageNumber, int pageSize, StatusOrderEnum status) {
+    @Transactional(readOnly = true)
+    public Page<OrderListResponse> getAll(int pageNumber, int pageSize, StatusOrderEnum status) {
+
         Pageable pageable = PageRequest.of(pageNumber,pageSize) ;
-        Specification specification = Specification.where(null) ;
+        Specification<Orders> specification = Specification.where(OrderSpecification.fetchListRelations()) ;
+
         if (status != null) {
             specification = specification.and(OrderSpecification.likeStatus(status)) ;
         }
+
         Page<Orders> orders = ordersRepository.findAll(specification,pageable) ;
-        Page<OrdersResponse> responses = orders.map(entity -> ordersMapper.toResponse(entity)) ;
+        Page<OrderListResponse> responses = orders.map(order -> {
+            OrderListResponse response = new OrderListResponse() ;
+            response.setId(order.getId());
+            response.setCustomerName(order.getUsers() == null ? null : order.getUsers().getFullName());
+            response.setCreatedAt(order.getCreatedAt());
+            response.setPaymentMethod(order.getPaymentMethod() == null ? null : order.getPaymentMethod().getName());
+            response.setTotalPrice(order.getTotalPrice());
+            response.setStatus(order.getStatus());
+            response.setCarrierName(order.getCarriers() == null ? null : order.getCarriers().getName());
+            return response ;
+        }) ;
+
         return responses;
     }
 
     @Override
     public void bulkConfirm(List<String> orderIds) {
+
         StatusOrderEnum oldStatus = StatusOrderEnum.PENDING ;
         StatusOrderEnum newStatus = StatusOrderEnum.CONFIRMED ;
-        List<Orders> orderConfirms = ordersRepository.findALLByIdAndStatus(orderIds, oldStatus) ;
-        orderConfirms.forEach(order -> {
-            order.setStatus(newStatus);
-            TrackingLogs log = new TrackingLogs();
-            log.setOrderId(order.getId());
-            log.setFromStatus(oldStatus);
-            log.setToStatus(newStatus);
-            log.setNote("Đơn hàng đã được xác nhận bởi Admin (Bulk Action)");
-            log.setLocation("Hệ thống quản lý");
 
-            trackingLogsRepository.save(log);
+        List<Orders> orderConfirms = ordersRepository.findAllByIdAndStatus(orderIds, oldStatus) ;
+        orderConfirms.forEach(order -> {
+            validateStatusTransition(order.getStatus(), newStatus);
+            order.setStatus(newStatus);
         });
+
+        List<String> confirmedOrderIds = orderConfirms.stream().map(Orders::getId).toList() ;
+
+        trackingLogsService.createLogs(
+                confirmedOrderIds,
+                oldStatus.toString(),
+                newStatus.toString(),
+                "Đơn hàng đã được xác nhận bởi Admin (Bulk Action)",
+                "Hệ thống quản lý"
+        ) ;
+
         ordersRepository.saveAll(orderConfirms);
     }
 
     @Override
     public void confirmPickUp(String id, StatusOrderEnum status) {
+
         if (id == null) {
             throw new BusinessException("Field id is null") ;
         }
+
         Optional<Orders> ordersOptional = ordersRepository.findById(id) ;
-        if (ordersOptional == null ) {
+
+        if (ordersOptional.isEmpty() ) {
             throw new BusinessException("Order not exist") ;
         }
+
         if (status == null) {
             throw new BusinessException("Field status is null") ;
         }
+
         Orders order = ordersOptional.get();
         StatusOrderEnum oldStatus = order.getStatus() ;
+        validateStatusTransition(oldStatus, status);
         order.setStatus(status);
+
         ordersRepository.save(order) ;
-        TrackingLogs logs = new TrackingLogs() ;
-        logs.setOrderId(order.getId());
-        logs.setFromStatus(oldStatus);
-        logs.setToStatus(status);
-        logs.setNote("Lấy hàng thành công");
-        logs.setLocation("Nhà kho");
-        trackingLogsRepository.save(logs) ;
+
+        trackingLogsService.createLog(
+                order.getId(),
+                oldStatus.toString(),
+                status.toString(),
+                "Lấy hàng thành công",
+                "Nhà kho"
+        ) ;
 
     }
 
@@ -206,19 +247,92 @@ public class OrdersServiceImplement implements OrdersService {
             throw new BusinessException("Field id is null") ;
         }
         Optional<Orders> ordersOptional = ordersRepository.findById(id) ;
-        if (ordersOptional == null || ordersOptional.isEmpty()) {
+        if (ordersOptional.isEmpty()) {
             throw new BusinessException("Order not exist") ;
         }
         Orders order = ordersOptional.get() ;
+
         StatusOrderEnum oldStatus = order.getStatus() ;
+        validateStatusTransition(oldStatus, status);
+
         order.setStatus(status);
-        TrackingLogs log = new TrackingLogs() ;
-        log.setLocation(order.getShippingAddress());
-        log.setOrderId(order.getId());
-        log.setFromStatus(oldStatus);
-        log.setToStatus(status);
-        log.setNote("Giao hàng thành công");
         ordersRepository.save(order);
-        trackingLogsRepository.save(log) ;
+        trackingLogsService.createLog(
+                order.getId(),
+                oldStatus.toString(),
+                status.toString(),
+                "Giao hàng thành công",
+                order.getShippingAddress()
+        ) ;
+    }
+
+    private void validateStatusTransition(StatusOrderEnum currentStatus, StatusOrderEnum newStatus) {
+        if (!isValidTransition(currentStatus, newStatus)) {
+            throw new BusinessException("Invalid order status transition") ;
+        }
+    }
+
+    private boolean isValidTransition(StatusOrderEnum currentStatus, StatusOrderEnum newStatus) {
+        if (currentStatus == null || newStatus == null) {
+            return false ;
+        }
+        return switch (currentStatus) {
+            case PENDING -> newStatus == StatusOrderEnum.CONFIRMED || newStatus == StatusOrderEnum.FAILED ;
+            case CONFIRMED -> newStatus == StatusOrderEnum.PICKING || newStatus == StatusOrderEnum.FAILED ;
+            case PICKING -> newStatus == StatusOrderEnum.SHIPPING || newStatus == StatusOrderEnum.FAILED ;
+            case SHIPPING -> newStatus == StatusOrderEnum.DELIVERED || newStatus == StatusOrderEnum.FAILED ;
+            case DELIVERED -> newStatus == StatusOrderEnum.RETURNING ;
+            case FAILED, RETURNING -> false ;
+        };
+    }
+
+    @Override
+    public void confirmOrder(String id) {
+        if (id == null) {
+            throw new BusinessException("Field id is null") ;
+        }
+        Optional<Orders> ordersOptional = ordersRepository.findById(id) ;
+        if(ordersOptional.isEmpty()) {
+            throw new BusinessException("Not found order") ;
+        }
+
+        StatusOrderEnum currStatus = ordersOptional.get().getStatus() ;
+        StatusOrderEnum newStatus = StatusOrderEnum.CONFIRMED ;
+
+        validateStatusTransition(currStatus,newStatus);
+        ordersOptional.get().setStatus(newStatus);
+        ordersRepository.save(ordersOptional.get()) ;
+        trackingLogsService.createLog(id,currStatus.toString(),newStatus.toString(),"Đơn hàng được xác nhận ","Hệ thống quản lý ");
+    }
+
+    @Override
+    public void rejectOrder(String id, String reason) {
+
+        if (id == null) {
+            throw new BusinessException("Field id is null") ;
+        }
+
+        Optional<Orders> ordersOptional = ordersRepository.findWithOrderItemsAndProductAndPromotionById(id) ;
+        if(ordersOptional.isEmpty()) {
+            throw new BusinessException("Not found order") ;
+        }
+
+        Orders order = ordersOptional.get();
+        List<OrderItems> orderItems = order.getOrderItems() ;
+        List<String> productIds = orderItems.stream().map(orderItems1 -> orderItems1.getProducts().getId()).toList() ;
+        List<Integer> quantities = orderItems.stream().map(OrderItems::getQuantity).toList() ;
+        Map<String,Integer> quantityByProductId = ProductQuantityUtils.toQuantityByProductId(productIds,quantities);
+        List<Products> products = orderItems.stream().map(OrderItems::getProducts).toList() ;
+
+
+        StatusOrderEnum currStatus = ordersOptional.get().getStatus() ;
+        StatusOrderEnum newStatus = StatusOrderEnum.FAILED ;
+
+        validateStatusTransition(currStatus,newStatus);
+        order.setStatus(newStatus);
+        ordersRepository.save(order) ;
+        trackingLogsService.createLog(id,currStatus.toString(),newStatus.toString(),"Đơn hàng bị từ chối ","Hệ thống quản lý ");
+        inventoryService.restoreQuantityProduct(products,quantityByProductId);
+        promotionService.restorePromotion(order.getPromotions()) ;
     }
 }

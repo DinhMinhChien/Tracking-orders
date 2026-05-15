@@ -4,10 +4,12 @@ import com.example.trackingorders.common.BaseResponse;
 import com.example.trackingorders.dto.request.CartItemUpdateRequest;
 import com.example.trackingorders.dto.response.CartItemResponse;
 import com.example.trackingorders.service.CartsService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -15,6 +17,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/api/v1/carts")
+@Validated
 public class CartsController {
 
     private final CartsService cartsService ;
@@ -34,7 +37,7 @@ public class CartsController {
 
     //http://localhost:8001/api/v1/carts/items/{cartItemId}
     @PatchMapping("/items/{cartItemId}")
-    public ResponseEntity<BaseResponse<CartItemResponse>> updateCartItem(@PathVariable String cartItemId ,@RequestBody CartItemUpdateRequest request) {
+    public ResponseEntity<BaseResponse<CartItemResponse>> updateCartItem(@PathVariable String cartItemId ,@RequestBody @Valid CartItemUpdateRequest request) {
         CartItemResponse cartItems = cartsService.updateCartItem(cartItemId,request) ;
         String message = messageSource.getMessage(
                 "UpdateProductOnCart.message",

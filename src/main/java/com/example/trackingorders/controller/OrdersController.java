@@ -4,15 +4,17 @@ import com.example.trackingorders.common.BaseResponse;
 import com.example.trackingorders.common.StatusOrderEnum;
 import com.example.trackingorders.dto.request.BulkConfirmRequest;
 import com.example.trackingorders.dto.request.OrdersRequest;
+import com.example.trackingorders.dto.response.OrderDetailResponse;
 import com.example.trackingorders.dto.response.OrderDashboardStats;
-import com.example.trackingorders.dto.response.OrdersResponse;
-import com.example.trackingorders.entity.*;
-import com.example.trackingorders.repository.*;
+import com.example.trackingorders.dto.response.OrderListResponse;
 import com.example.trackingorders.service.OrdersService;
-import lombok.Getter;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -20,65 +22,99 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/orders")
+@Validated
 public class OrdersController {
     private final OrdersService ordersService ;
+    private final MessageSource messageSource ;
 
     //http://localhost:8001/api/v1/orders
     @PostMapping
-    public ResponseEntity<BaseResponse<OrdersResponse>> create(@RequestBody OrdersRequest request) {
-        OrdersResponse response = ordersService.create(request) ;
-        return ResponseEntity.ok(BaseResponse.ofSuccess(response,"create success")) ;
+    public ResponseEntity<BaseResponse<OrderDetailResponse>> create(@RequestBody @Valid OrdersRequest request) {
+        OrderDetailResponse response = ordersService.create(request) ;
+        String message = messageSource.getMessage(
+                "Order-create.message",
+                null,
+                LocaleContextHolder.getLocale()
+        );
+        return ResponseEntity.ok(BaseResponse.ofSuccess(response,message));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<BaseResponse<OrdersResponse>> getDetail(@PathVariable String id) {
-        OrdersResponse response = ordersService.getDetail(id) ;
-        return ResponseEntity.ok(BaseResponse.ofSuccess(response,"Lấy thành công chi tiết đơn hàng ")) ;
+    public ResponseEntity<BaseResponse<OrderDetailResponse>> getDetail(@PathVariable String id) {
+        OrderDetailResponse response = ordersService.getDetail(id) ;
+        String message = messageSource.getMessage(
+                "Order-detail.message",
+                null,
+                LocaleContextHolder.getLocale()
+        );
+        return ResponseEntity.ok(BaseResponse.ofSuccess(response, message)) ;
     }
 
     @GetMapping("/statistics")
     public ResponseEntity<BaseResponse<OrderDashboardStats>> getHeaderStats() {
         OrderDashboardStats response = ordersService.getHeaderStats();
-        return ResponseEntity.ok(BaseResponse.ofSuccess(response,"Lấy dữ liệu thành công")) ;
+        String message = messageSource.getMessage(
+                "Order-statistics.message",
+                null,
+                LocaleContextHolder.getLocale()
+        );
+        return ResponseEntity.ok(BaseResponse.ofSuccess(response,message)) ;
     }
 
     @GetMapping
-    public ResponseEntity<BaseResponse<List<OrdersResponse>>> getAll(@RequestParam(required = false,defaultValue = "1") int pageNumber ,
-                                                            @RequestParam(required = false,defaultValue = "4") int pageSize,
-                                                            @RequestParam(required = false)StatusOrderEnum status) {
+    public ResponseEntity<BaseResponse<List<OrderListResponse>>> getAll(@RequestParam(required = false,defaultValue = "1") int pageNumber ,
+                                                                        @RequestParam(required = false,defaultValue = "4") int pageSize,
+                                                                        @RequestParam(required = false)StatusOrderEnum status) {
 
-        Page<OrdersResponse> orders = ordersService.getAll(pageNumber,pageSize,status);
+        Page<OrderListResponse> orders = ordersService.getAll(pageNumber,pageSize,status);
         return ResponseEntity.ok(BaseResponse.ofSuccess(orders)) ;
     }
 
-    @PostMapping("/test")
-    public ResponseEntity<OrdersResponse> test(@RequestBody OrdersRequest ordersRequest) {
-        return null ;
-    }
-
     @PostMapping("/bulk-confirm")
-    public ResponseEntity<BaseResponse<String>> bulkConfirm(@RequestBody BulkConfirmRequest request) {
+    public ResponseEntity<BaseResponse<String>> bulkConfirm(@RequestBody @Valid BulkConfirmRequest request) {
         List<String> orderIds = request.getOrderIds() ;
         ordersService.bulkConfirm(orderIds) ;
-        return ResponseEntity.ok(BaseResponse.ofSuccess("Đã xác nhận " + orderIds.size() + " đơn hàng thành công ")) ;
+        return ResponseEntity.ok(BaseResponse.ofSuccess("Confirmed " + orderIds.size() + " order success ")) ;
     }
 
+    @PutMapping("/{id}/confirm")
+    public ResponseEntity<BaseResponse<String>> confirmOrder(@PathVariable String id) {
+        ordersService.confirmOrder(id) ;
+        String message = messageSource.getMessage(
+                "Order-confirm.message",
+                null,
+                LocaleContextHolder.getLocale()
+        );
+        return ResponseEntity.ok(BaseResponse.ofSuccess(message)) ;
+    }
+
+    @PutMapping("/{id}/reject")
+    public ResponseEntity<BaseResponse<String>> rejectOrder(@PathVariable String id,@RequestBody String reason) {
+        ordersService.rejectOrder(id,reason) ;
+        String message = messageSource.getMessage(
+                "Order-reject.message",
+                null,
+                LocaleContextHolder.getLocale()
+        );
+        return ResponseEntity.ok(BaseResponse.ofSuccess(message)) ;
+    }
     @PutMapping("/{id}/pick-up")
     public ResponseEntity<BaseResponse<String>> confirmPickUp(@PathVariable String id ) {
         ordersService.confirmPickUp(id,StatusOrderEnum.PICKING) ;
-        return ResponseEntity.ok(BaseResponse.ofSuccess("Lấy hàng thành công")) ;
+        String message = messageSource.getMessage(
+                "Order-pickup.message",
+                null,
+                LocaleContextHolder.getLocale()
+        );
+        return ResponseEntity.ok(BaseResponse.ofSuccess(message)) ;
     }
 
     @PutMapping("/{id}/delivery-success")
     public ResponseEntity<BaseResponse<String>> confirmDeliverySuccess(@PathVariable String id) {
         ordersService.confirmDeliverySuccess(id,StatusOrderEnum.DELIVERED) ;
-        return ResponseEntity.ok(BaseResponse.ofSuccess("Xác nhận giao hàng thành công ")) ;
+        return ResponseEntity.ok(BaseResponse.ofSuccess("Delivery success")) ;
     }
 
-    @PutMapping("/{id}/confirm")
-    public ResponseEntity<BaseResponse<String>> confirmOrder(@PathVariable String id) {
-        return null ;
-    }
 
 
 }

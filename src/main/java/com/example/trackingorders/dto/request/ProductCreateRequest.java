@@ -1,11 +1,10 @@
 package com.example.trackingorders.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 import org.springframework.validation.annotation.Validated;
 
 import java.io.Serializable;
@@ -20,6 +19,8 @@ public class ProductCreateRequest implements Serializable {
     @NotBlank(message = "Field name is not null")
     private String name ;
 
+    @NotNull(message = "Field price not null")
+    @Positive(message = "Price is higher than zero")
     private BigDecimal price ;
 
     @NotBlank(message = "Field description is not null")
@@ -34,5 +35,6 @@ public class ProductCreateRequest implements Serializable {
     @NotBlank(message = "Field imgUrl is not null")
     private String imgUrl ;
 
+    @NotBlank(message = "Field quantity is not null")
     private Integer quantity ;
 }

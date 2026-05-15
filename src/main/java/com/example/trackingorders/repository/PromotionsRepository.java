@@ -12,12 +12,6 @@ import java.util.List;
 
 public interface PromotionsRepository extends JpaRepository<Promotions,String> {
 
-    @Query("select p from Promotions p where p.minOrderValue <= :total and p.endDate >= :timeNow and p.usagesLimit > 0 and p.deleted = false ")
+    @Query("select p from Promotions p where p.minOrderValue <= :total and p.startDate <= :timeNow and p.endDate >= :timeNow and p.usagesLimit > 0 and p.deleted = false ")
     List<Promotions> findAllByCondition(BigDecimal total, LocalDateTime timeNow) ;
-
-    @Modifying
-    @Transactional
-    @Query("update Promotions  p set p.usagesLimit = p.usagesLimit -1 where p.id =:promotionId")
-    void decreaseUsagesLimit(String promotionId);
-
 }
