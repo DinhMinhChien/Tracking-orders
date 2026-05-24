@@ -1,6 +1,7 @@
 package com.example.trackingorders.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -18,7 +19,7 @@ public class CheckoutSummaryRequest implements Serializable {
     @NotBlank(message = "Field cartItemIds not null")
     private List<String> productIds;
 
-    @NotBlank(message = "Field quantity not null")
+    @NotNull(message = "Field quantity not null")
     private List<Integer> quantities ;
 
     private String promotionId ;

@@ -112,7 +112,7 @@ public class OrdersServiceImplement implements OrdersService {
 
         //xoá sản phẩm khỏi giỏ hàng nếu đơn tạo từ giỏ hàng
         if (isFromCart == true) {
-            cartItemsRepository.removeCartItemsByProducts(products,user) ;
+            cartItemsRepository.removeCartItemsByProductIdsAndUserId(productIds, user.getId()) ;
         }
 
         // Giảm quantity của product sau khi đã đặt hàng
@@ -129,15 +129,8 @@ public class OrdersServiceImplement implements OrdersService {
     @Transactional(readOnly = true)
     public OrderDetailResponse getDetail(String id) {
 
-        if (id == null || id.isEmpty()) {
-            throw new BusinessException("Field id is null") ;
-        }
-
-        Optional<Orders> ordersOptional = ordersRepository.findById(id) ;
-        if (ordersOptional.isEmpty()) {
-            throw new BusinessException("Not found order") ;
-        }
-        OrderDetailResponse response = ordersMapper.toResponse(ordersOptional.get()) ;
+        Orders order = findOrderById(id, "Field id is null", "Not found order") ;
+        OrderDetailResponse response = ordersMapper.toResponse(order) ;
         return response ;
     }
 
@@ -159,7 +152,7 @@ public class OrdersServiceImplement implements OrdersService {
     @Transactional(readOnly = true)
     public Page<OrderListResponse> getAll(int pageNumber, int pageSize, StatusOrderEnum status) {
 
-        Pageable pageable = PageRequest.of(pageNumber,pageSize) ;
+        Pageable pageable = PageRequest.of(pageNumber - 1, pageSize) ;
         Specification<Orders> specification = Specification.where(OrderSpecification.fetchListRelations()) ;
 
         if (status != null) {
@@ -190,8 +183,7 @@ public class OrdersServiceImplement implements OrdersService {
 
         List<Orders> orderConfirms = ordersRepository.findAllByIdAndStatus(orderIds, oldStatus) ;
         orderConfirms.forEach(order -> {
-            validateStatusTransition(order.getStatus(), newStatus);
-            order.setStatus(newStatus);
+            changeOrderStatus(order, newStatus);
         });
 
         List<String> confirmedOrderIds = orderConfirms.stream().map(Orders::getId).toList() ;
@@ -210,26 +202,8 @@ public class OrdersServiceImplement implements OrdersService {
     @Override
     public void confirmPickUp(String id, StatusOrderEnum status) {
 
-        if (id == null) {
-            throw new BusinessException("Field id is null") ;
-        }
-
-        Optional<Orders> ordersOptional = ordersRepository.findById(id) ;
-
-        if (ordersOptional.isEmpty() ) {
-            throw new BusinessException("Order not exist") ;
-        }
-
-        if (status == null) {
-            throw new BusinessException("Field status is null") ;
-        }
-
-        Orders order = ordersOptional.get();
-        StatusOrderEnum oldStatus = order.getStatus() ;
-        validateStatusTransition(oldStatus, status);
-        order.setStatus(status);
-
-        ordersRepository.save(order) ;
+        Orders order = findOrderById(id, "Field id is null", "Order not exist") ;
+        StatusOrderEnum oldStatus = updateOrderStatus(order, status) ;
 
         trackingLogsService.createLog(
                 order.getId(),
@@ -243,20 +217,9 @@ public class OrdersServiceImplement implements OrdersService {
 
     @Override
     public void confirmDeliverySuccess(String id, StatusOrderEnum status) {
-        if (id == null) {
-            throw new BusinessException("Field id is null") ;
-        }
-        Optional<Orders> ordersOptional = ordersRepository.findById(id) ;
-        if (ordersOptional.isEmpty()) {
-            throw new BusinessException("Order not exist") ;
-        }
-        Orders order = ordersOptional.get() ;
+        Orders order = findOrderById(id, "Field id is null", "Order not exist") ;
+        StatusOrderEnum oldStatus = updateOrderStatus(order, status) ;
 
-        StatusOrderEnum oldStatus = order.getStatus() ;
-        validateStatusTransition(oldStatus, status);
-
-        order.setStatus(status);
-        ordersRepository.save(order);
         trackingLogsService.createLog(
                 order.getId(),
                 oldStatus.toString(),
@@ -270,6 +233,28 @@ public class OrdersServiceImplement implements OrdersService {
         if (!isValidTransition(currentStatus, newStatus)) {
             throw new BusinessException("Invalid order status transition") ;
         }
+    }
+
+    private Orders findOrderById(String id, String nullMessage, String notFoundMessage) {
+        if (id == null || id.isEmpty()) {
+            throw new BusinessException(nullMessage) ;
+        }
+
+        return ordersRepository.findById(id)
+                .orElseThrow(() -> new BusinessException(notFoundMessage)) ;
+    }
+
+    private StatusOrderEnum updateOrderStatus(Orders order, StatusOrderEnum newStatus) {
+        StatusOrderEnum oldStatus = changeOrderStatus(order, newStatus) ;
+        ordersRepository.save(order) ;
+        return oldStatus ;
+    }
+
+    private StatusOrderEnum changeOrderStatus(Orders order, StatusOrderEnum newStatus) {
+        StatusOrderEnum oldStatus = order.getStatus() ;
+        validateStatusTransition(oldStatus, newStatus);
+        order.setStatus(newStatus);
+        return oldStatus ;
     }
 
     private boolean isValidTransition(StatusOrderEnum currentStatus, StatusOrderEnum newStatus) {
@@ -288,51 +273,48 @@ public class OrdersServiceImplement implements OrdersService {
 
     @Override
     public void confirmOrder(String id) {
-        if (id == null) {
-            throw new BusinessException("Field id is null") ;
-        }
-        Optional<Orders> ordersOptional = ordersRepository.findById(id) ;
-        if(ordersOptional.isEmpty()) {
-            throw new BusinessException("Not found order") ;
-        }
-
-        StatusOrderEnum currStatus = ordersOptional.get().getStatus() ;
+        Orders order = findOrderById(id, "Field id is null", "Not found order") ;
         StatusOrderEnum newStatus = StatusOrderEnum.CONFIRMED ;
+        StatusOrderEnum currStatus = updateOrderStatus(order, newStatus) ;
 
-        validateStatusTransition(currStatus,newStatus);
-        ordersOptional.get().setStatus(newStatus);
-        ordersRepository.save(ordersOptional.get()) ;
         trackingLogsService.createLog(id,currStatus.toString(),newStatus.toString(),"Đơn hàng được xác nhận ","Hệ thống quản lý ");
     }
 
     @Override
     public void rejectOrder(String id, String reason) {
 
-        if (id == null) {
-            throw new BusinessException("Field id is null") ;
+        Orders order = findOrderById(id, "Field id is null", "Not found order") ;
+        List<OrderItems> orderItems = orderItemsRepository.findWithProductsByOrderId(id) ;
+        if (orderItems.isEmpty()) {
+            throw new BusinessException("Order has no items") ;
         }
-
-        Optional<Orders> ordersOptional = ordersRepository.findWithOrderItemsAndProductAndPromotionById(id) ;
-        if(ordersOptional.isEmpty()) {
-            throw new BusinessException("Not found order") ;
-        }
-
-        Orders order = ordersOptional.get();
-        List<OrderItems> orderItems = order.getOrderItems() ;
         List<String> productIds = orderItems.stream().map(orderItems1 -> orderItems1.getProducts().getId()).toList() ;
         List<Integer> quantities = orderItems.stream().map(OrderItems::getQuantity).toList() ;
         Map<String,Integer> quantityByProductId = ProductQuantityUtils.toQuantityByProductId(productIds,quantities);
         List<Products> products = orderItems.stream().map(OrderItems::getProducts).toList() ;
 
 
-        StatusOrderEnum currStatus = ordersOptional.get().getStatus() ;
         StatusOrderEnum newStatus = StatusOrderEnum.FAILED ;
+        StatusOrderEnum currStatus = changeOrderStatus(order, newStatus) ;
 
-        validateStatusTransition(currStatus,newStatus);
-        order.setStatus(newStatus);
+        inventoryService.restoreQuantityProduct(products,quantityByProductId);
+        promotionService.restorePromotion(order) ;
         ordersRepository.save(order) ;
         trackingLogsService.createLog(id,currStatus.toString(),newStatus.toString(),"Đơn hàng bị từ chối ","Hệ thống quản lý ");
-        inventoryService.restoreQuantityProduct(products,quantityByProductId);
-        promotionService.restorePromotion(order.getPromotions()) ;
+    }
+
+    @Override
+    public void confirmShipping(String id, StatusOrderEnum status) {
+        Orders order = findOrderById(id, "Order id is null", "Order not exist") ;
+        StatusOrderEnum oldStatus = updateOrderStatus(order, status) ;
+
+        trackingLogsService.createLog(
+                order.getId(),
+                oldStatus.toString(),
+                status.toString(),
+                "Đơn hàng đang trong quá trinh vận chuyển ",
+                "Nhà kho"
+        ) ;
+
     }
 }

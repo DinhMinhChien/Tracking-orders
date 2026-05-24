@@ -58,6 +58,7 @@ public class ReturnsController {
         return ResponseEntity.ok(BaseResponse.ofSuccess(response, "success"));
     }
 
+    //http://localhost:8001/api/v1/returns/export
     @GetMapping("/export")
     public void exportReturn(@RequestParam(required = false) StatusReturnEnum status,
                              HttpServletResponse response) throws IOException {
@@ -81,21 +82,41 @@ public class ReturnsController {
         response.flushBuffer();
     }
 
+    //http://localhost:8001/api/v1/returns/admin/{returnId}/confirm
     @PostMapping("/admin/{returnId}/confirm")
-    public ResponseEntity<BaseResponse<String>> confirm(@PathVariable String returnId, @RequestBody StatusReturnEnum status ) {
-        returnsService.confirm(returnId,status) ;
+    public ResponseEntity<BaseResponse<String>> confirm(@PathVariable String returnId) {
+        returnsService.confirm(returnId) ;
         return ResponseEntity.ok(BaseResponse.ofSuccess("Confirm success")) ;
     }
 
     @PostMapping("/admin/{returnId}/reject")
-    public ResponseEntity<BaseResponse<String>> reject(@PathVariable String returnId, @RequestBody StatusReturnEnum status) {
-        returnsService.reject(returnId,status) ;
+    public ResponseEntity<BaseResponse<String>> reject(@PathVariable String returnId) {
+        returnsService.reject(returnId) ;
         return ResponseEntity.ok(BaseResponse.ofSuccess("Reject return success")) ;
     }
 
-    @GetMapping("/admin/{returnId}/return-success")
-    public ResponseEntity<BaseResponse<String>> returnsSuccess(@PathVariable String returnId) {
-        returnsService.returnsSuccess(returnId) ;
-        return ResponseEntity.ok(BaseResponse.ofSuccess("Return order success")) ;
+    @PostMapping("/admin/{returnId}/warehouse-received")
+    public ResponseEntity<BaseResponse<String>> warehouseReceived(@PathVariable String returnId) {
+        returnsService.markWarehouseReceived(returnId) ;
+        return ResponseEntity.ok(BaseResponse.ofSuccess("Warehouse received success")) ;
     }
+
+    @PostMapping("/admin/{returnId}/restock")
+    public ResponseEntity<BaseResponse<String>> restock(@PathVariable String returnId) {
+        returnsService.restock(returnId) ;
+        return ResponseEntity.ok(BaseResponse.ofSuccess("Restock success")) ;
+    }
+
+    @PostMapping("/admin/{returnId}/refund")
+    public ResponseEntity<BaseResponse<String>> refund(@PathVariable String returnId) {
+        returnsService.refund(returnId) ;
+        return ResponseEntity.ok(BaseResponse.ofSuccess("Refund success")) ;
+    }
+
+    @PostMapping("/admin/{returnId}/fail")
+    public ResponseEntity<BaseResponse<String>> fail(@PathVariable String returnId) {
+        returnsService.fail(returnId) ;
+        return ResponseEntity.ok(BaseResponse.ofSuccess("Return failed")) ;
+    }
+
 }

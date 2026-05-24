@@ -169,6 +169,48 @@ public class ReturnsServiceImplement implements ReturnsService {
         }
     }
 
+    private Returns findReturnById(String returnId) {
+        if (returnId == null || returnId.isEmpty()) {
+            throw new BusinessException("Field id is null") ;
+        }
+
+        return returnsRepository.findWithOrderAndUserById(returnId)
+                .orElseThrow(() -> new BusinessException("Not found return order")) ;
+    }
+
+    private Returns findReturnWithOrderItems(String returnId) {
+        if (returnId == null || returnId.isEmpty()) {
+            throw new BusinessException("Field id is null") ;
+        }
+
+        return returnsRepository.findWithOrderItemsAndProductAndPromotion(returnId)
+                .orElseThrow(() -> new BusinessException("Not found return order")) ;
+    }
+
+    private StatusReturnEnum changeReturnStatus(Returns returns, StatusReturnEnum newStatus) {
+        StatusReturnEnum currentStatus = returns.getStatus() ;
+        validateStatusTransition(currentStatus,newStatus);
+        returns.setStatus(newStatus);
+        return currentStatus ;
+    }
+
+    private void updateReturnStatus(String returnId, StatusReturnEnum newStatus, String logMessage) {
+        Returns returns = findReturnById(returnId) ;
+        StatusReturnEnum currentStatus = changeReturnStatus(returns, newStatus) ;
+        returnsRepository.save(returns) ;
+        createReturnLog(returns,currentStatus,newStatus,logMessage);
+    }
+
+    private void createReturnLog(Returns returns, StatusReturnEnum currentStatus, StatusReturnEnum newStatus, String message) {
+        trackingLogsService.createLog(
+                returns.getOrders().getId(),
+                currentStatus.toString(),
+                newStatus.toString(),
+                message,
+                "Há»‡ thá»‘ng"
+        );
+    }
+
     private boolean isValidTransition(StatusReturnEnum currentStatus, StatusReturnEnum newStatus) {
         if (currentStatus == null || newStatus == null) {
             return false ;
@@ -176,6 +218,7 @@ public class ReturnsServiceImplement implements ReturnsService {
         return switch (currentStatus) {
             case PENDING ->
                     newStatus == StatusReturnEnum.IN_TRANSIT ||
+                    newStatus == StatusReturnEnum.REJECTED ||
                     newStatus == StatusReturnEnum.FAILED ;
             case IN_TRANSIT ->
                     newStatus == StatusReturnEnum.WAREHOUSE_RECEIVED ||
@@ -189,84 +232,65 @@ public class ReturnsServiceImplement implements ReturnsService {
         };
     }
     @Override
-    public void confirm(String returnId, StatusReturnEnum status) {
-        status = StatusReturnEnum.IN_TRANSIT ;
-        if (returnId == null) {
-            throw new BusinessException("Field returnId is null") ;
-        }
-        
-        Optional<Returns> returnsOptional = returnsRepository.findWithOrderAndUserById(returnId) ;
-        if (returnsOptional.isEmpty()) {
-            throw new BusinessException("Not found returns order") ;
-        }
-
-        Returns returns = returnsOptional.get() ;
-        StatusReturnEnum currentStatus = returns.getStatus() ;
-        validateStatusTransition(currentStatus,status) ;
-        returns.setStatus(status);
-        returnsRepository.save(returns) ;
-        trackingLogsService.createLog(
-                returns.getOrders().getId(),
-                currentStatus.toString(),status.toString(),
-                "Xác nhận đơn hoàn trả thành công . Đơn hoàn trả đang tiếp tục được xử lí",
-                "Hệ thống"
-        );
-
-    }
-
-    @Override
-    public void reject(String returnId, StatusReturnEnum status) {
-        status = StatusReturnEnum.REJECTED ;
-        if (returnId == null) {
-            throw new BusinessException("Field returnId is null") ;
-        }
-        Optional<Returns> returnsOptional = returnsRepository.findWithOrderAndUserById(returnId) ;
-        if (returnsOptional.isEmpty()) {
-            throw new BusinessException("Not found return order") ;
-        }
-        Returns returns = returnsOptional.get() ;
-        StatusReturnEnum currentStatus = returns.getStatus() ;
-        validateStatusTransition(currentStatus,status);
-        returns.setStatus(status);
-        returnsRepository.save(returns) ;
-        trackingLogsService.createLog(
-                returns.getOrders().getId(),
-                currentStatus.toString(),
-                status.toString(),
-                "Từ chối hoàn trả đơn hàng do đơn hàng ko đạt yêu cầu ",
-                "Hệ thống"
+    public void confirm(String returnId) {
+        updateReturnStatus(
+                returnId,
+                StatusReturnEnum.IN_TRANSIT,
+                "Confirm return success"
         );
     }
 
     @Override
-    public void returnsSuccess(String returnId) {
-        if (returnId == null ) {
-            throw new BusinessException("Field id is null") ;
-        }
-        Optional<Returns> returnsOptional = returnsRepository.findWithOrderItemsAndProductAndPromotion(returnId) ;
-        if (returnsOptional.isEmpty()) {
-            throw new BusinessException("Not found return order") ;
-        }
-        Returns returns = returnsOptional.get();
-        StatusReturnEnum currentStatus = returns.getStatus() ;
-        validateStatusTransition(currentStatus,StatusReturnEnum.REFUNDED);
+    public void reject(String returnId) {
+        updateReturnStatus(
+                returnId,
+                StatusReturnEnum.REJECTED,
+                "Reject return success"
+        );
+    }
+
+    @Override
+    public void restock(String returnId) {
+        StatusReturnEnum status = StatusReturnEnum.RESTOCKED ;
+        Returns returns = findReturnWithOrderItems(returnId);
+        StatusReturnEnum currentStatus = changeReturnStatus(returns, status) ;
         List<OrderItems> orderItems = returns.getOrders().getOrderItems();
         List<Products> products = orderItems.stream().map(OrderItems::getProducts).toList() ;
         List<String> productIds = products.stream().map(Products::getId).toList();
         List<Integer> quantities = orderItems.stream().map(OrderItems::getQuantity).toList() ;
         Map<String,Integer> quantityByProductId = ProductQuantityUtils.toQuantityByProductId(productIds,quantities);
         inventoryService.restoreQuantityProduct(products,quantityByProductId);
-        promotionService.restorePromotion(returns.getOrders().getPromotions());
-
-        returns.setStatus(StatusReturnEnum.REFUNDED);
         returnsRepository.save(returns);
-        trackingLogsService.createLog(
-                returns.getOrders().getId(),
-                currentStatus.toString(),
-                StatusReturnEnum.REFUNDED.toString(),
-                "Return order success",
-                "Hệ thống"
-        );
+        createReturnLog(returns,currentStatus,status,"Return order restocked");
 
     }
+
+    @Override
+    public void markWarehouseReceived(String returnId) {
+        updateReturnStatus(
+                returnId,
+                StatusReturnEnum.WAREHOUSE_RECEIVED,
+                "Return order received by warehouse"
+        );
+    }
+
+    @Override
+    public void refund(String returnId) {
+        StatusReturnEnum status = StatusReturnEnum.REFUNDED ;
+        Returns returns = findReturnById(returnId);
+        StatusReturnEnum currentStatus = changeReturnStatus(returns, status) ;
+        promotionService.restorePromotion(returns.getOrders());
+        returnsRepository.save(returns);
+        createReturnLog(returns,currentStatus,status,"Return order refunded");
+    }
+
+    @Override
+    public void fail(String returnId) {
+        updateReturnStatus(
+                returnId,
+                StatusReturnEnum.FAILED,
+                "Return order failed"
+        );
+    }
+
 }

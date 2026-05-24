@@ -35,6 +35,6 @@ public class ProductCreateRequest implements Serializable {
     @NotBlank(message = "Field imgUrl is not null")
     private String imgUrl ;
 
-    @NotBlank(message = "Field quantity is not null")
+    @NotNull(message = "Field quantity is not null")
     private Integer quantity ;
 }

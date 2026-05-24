@@ -7,4 +7,5 @@ import java.util.List;
 
 public interface UsersService {
     List<AddressResponse> getAddresses() ;
+    void insertAddress(String newAddress) ;
 }

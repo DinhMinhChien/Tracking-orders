@@ -26,6 +26,11 @@ public class AuthServiceImplement implements AuthService {
     private final CarriersRepository carriersRepository ;
     @Override
     public void register(AuthRegisterRequest request) {
+        Users existUser = usersRepository.findByUsername(request.getUsername()) ;
+        if (existUser != null ) {
+            throw new BusinessException("This username already exists. ") ;
+        }
+
         Users users = new Users() ;
 
         users.setUsername(request.getUsername());
@@ -49,7 +54,7 @@ public class AuthServiceImplement implements AuthService {
         Users userSave = usersRepository.save(users) ;
 
         Addresses address = new Addresses() ;
-        address.setFullAddress(request.getFullName());
+        address.setFullAddress(request.getAddress());
         address.setUsers(userSave);
         addressesRepository.save(address);
 

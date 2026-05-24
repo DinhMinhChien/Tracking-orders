@@ -16,8 +16,11 @@ public interface ReturnsService {
     ReturnsResponse create(ReturnsRequest request) ;
     DetailReturnResponse getDetail(String returnId) ;
     List<ReturnOrderExportDTO> getDataForExport(StatusReturnEnum status) ;
-    void confirm(String returnId,StatusReturnEnum status) ;
-    void reject(String returnId,StatusReturnEnum status) ;
-    void returnsSuccess(String returnId) ;
+    void confirm(String returnId) ;
+    void reject(String returnId) ;
+    void markWarehouseReceived(String returnId) ;
+    void restock(String returnId) ;
+    void refund(String returnId) ;
+    void fail(String returnId) ;
 
 }

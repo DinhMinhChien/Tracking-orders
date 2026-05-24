@@ -16,4 +16,10 @@ public class ProductDashboardStats implements Serializable {
     private BigDecimal totalInventoryValue;
     private Integer totalProductCount;
     private Integer lowStockCount;
+
+    public ProductDashboardStats(BigDecimal totalInventoryValue, Long totalProductCount, Long lowStockCount) {
+        this.totalInventoryValue = totalInventoryValue;
+        this.totalProductCount = totalProductCount == null ? 0 : totalProductCount.intValue();
+        this.lowStockCount = lowStockCount == null ? 0 : lowStockCount.intValue();
+    }
 }

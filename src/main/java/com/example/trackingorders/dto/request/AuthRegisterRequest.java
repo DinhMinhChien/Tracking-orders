@@ -3,6 +3,7 @@ package com.example.trackingorders.dto.request;
 import com.example.trackingorders.common.RoleEnum;
 import com.example.trackingorders.entity.Carriers;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -29,7 +30,7 @@ public class AuthRegisterRequest implements Serializable {
     @NotBlank(message = "Field email is not null")
     private String email ;
 
-    @NotBlank(message = "Field role is not null")
+    @NotNull(message = "Field role is not null")
     private RoleEnum role ;
 
     private String carrierId ;

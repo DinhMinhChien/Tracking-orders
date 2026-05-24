@@ -40,7 +40,7 @@ public interface ReturnsRepository extends JpaRepository<Returns,String>, JpaSpe
             "AND r.deleted = false")
     List<Returns> findAllForExport(@Param("status") StatusReturnEnum status);
 
-    @Query("select r from Returns r join fetch r.orders o join fetch o.orderItems oi join fetch oi.products join fetch o.promotions where r.id = :returnId")
+    @Query("select r from Returns r join fetch r.orders o join fetch o.orderItems oi join fetch oi.products left join fetch o.promotions where r.id = :returnId")
     Optional<Returns> findWithOrderItemsAndProductAndPromotion(String returnId);
 
 }

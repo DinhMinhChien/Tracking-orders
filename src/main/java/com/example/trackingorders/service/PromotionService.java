@@ -14,5 +14,5 @@ public interface PromotionService {
     BigDecimal calculateDiscount(Promotions promotion, BigDecimal subTotal);
     BigDecimal calculateDiscountAmount(String promotionId, BigDecimal subTotal);
     void usePromotion(Users user, Promotions promotion, Orders order);
-    void restorePromotion(Promotions promotion) ;
+    void restorePromotion(Orders order) ;
 }

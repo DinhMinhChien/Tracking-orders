@@ -34,6 +34,6 @@ public interface OrdersRepository extends JpaRepository<Orders,String>, JpaSpeci
     @Query("select o from Orders o join fetch o.users u where o.id = :id and o.deleted = false")
     Optional<Orders> findWithUserById(String id) ;
 
-    @Query("select o from Orders o left join fetch o.orderItems oi left join fetch oi.products join fetch o.promotions where o.id = :id and o.deleted = false")
-    Optional<Orders> findWithOrderItemsAndProductAndPromotionById(String id) ;
+    @Query("select distinct o from Orders o left join fetch o.orderItems oi left join fetch oi.products join fetch o.promotions where o.id = :id and o.deleted = false")
+    List<Orders> findWithOrderItemsAndProductAndPromotionById(String id) ;
 }

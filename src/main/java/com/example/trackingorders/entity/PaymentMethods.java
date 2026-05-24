@@ -1,6 +1,6 @@
 package com.example.trackingorders.entity;
 
-import com.example.trackingorders.common.StatusProductsEnum;
+import com.example.trackingorders.common.StatusEnum;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -33,5 +33,5 @@ public class PaymentMethods extends BaseEntity implements Serializable {
 
     @Column(name = "status")
     @Enumerated(EnumType.STRING)
-    private StatusProductsEnum status ;
+    private StatusEnum status ;
 }

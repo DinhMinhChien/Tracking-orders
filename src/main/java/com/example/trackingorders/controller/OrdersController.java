@@ -39,6 +39,7 @@ public class OrdersController {
         return ResponseEntity.ok(BaseResponse.ofSuccess(response,message));
     }
 
+    //http://localhost:8001/api/v1/orders/{id}
     @GetMapping("/{id}")
     public ResponseEntity<BaseResponse<OrderDetailResponse>> getDetail(@PathVariable String id) {
         OrderDetailResponse response = ordersService.getDetail(id) ;
@@ -50,6 +51,7 @@ public class OrdersController {
         return ResponseEntity.ok(BaseResponse.ofSuccess(response, message)) ;
     }
 
+    //http://localhost:8001/api/v1/orders/statistics
     @GetMapping("/statistics")
     public ResponseEntity<BaseResponse<OrderDashboardStats>> getHeaderStats() {
         OrderDashboardStats response = ordersService.getHeaderStats();
@@ -61,6 +63,7 @@ public class OrdersController {
         return ResponseEntity.ok(BaseResponse.ofSuccess(response,message)) ;
     }
 
+    //http://localhost:8001/api/v1/orders
     @GetMapping
     public ResponseEntity<BaseResponse<List<OrderListResponse>>> getAll(@RequestParam(required = false,defaultValue = "1") int pageNumber ,
                                                                         @RequestParam(required = false,defaultValue = "4") int pageSize,
@@ -70,13 +73,15 @@ public class OrdersController {
         return ResponseEntity.ok(BaseResponse.ofSuccess(orders)) ;
     }
 
+    //http://localhost:8001/api/v1/orders/bulk-confirm
+
     @PostMapping("/bulk-confirm")
     public ResponseEntity<BaseResponse<String>> bulkConfirm(@RequestBody @Valid BulkConfirmRequest request) {
         List<String> orderIds = request.getOrderIds() ;
         ordersService.bulkConfirm(orderIds) ;
         return ResponseEntity.ok(BaseResponse.ofSuccess("Confirmed " + orderIds.size() + " order success ")) ;
     }
-
+    //http://localhost:8001/api/v1/orders/{id}/confirm
     @PutMapping("/{id}/confirm")
     public ResponseEntity<BaseResponse<String>> confirmOrder(@PathVariable String id) {
         ordersService.confirmOrder(id) ;
@@ -88,6 +93,7 @@ public class OrdersController {
         return ResponseEntity.ok(BaseResponse.ofSuccess(message)) ;
     }
 
+    //http://localhost:8001/api/v1/orders/{id}/reject
     @PutMapping("/{id}/reject")
     public ResponseEntity<BaseResponse<String>> rejectOrder(@PathVariable String id,@RequestBody String reason) {
         ordersService.rejectOrder(id,reason) ;
@@ -98,6 +104,8 @@ public class OrdersController {
         );
         return ResponseEntity.ok(BaseResponse.ofSuccess(message)) ;
     }
+
+    //http://localhost:8001/api/v1/orders/{id}/pick-up
     @PutMapping("/{id}/pick-up")
     public ResponseEntity<BaseResponse<String>> confirmPickUp(@PathVariable String id ) {
         ordersService.confirmPickUp(id,StatusOrderEnum.PICKING) ;
@@ -109,6 +117,20 @@ public class OrdersController {
         return ResponseEntity.ok(BaseResponse.ofSuccess(message)) ;
     }
 
+    //http://localhost:8001/api/v1/orders/{id}/shipping
+    @PutMapping("/{id}/shipping")
+    public ResponseEntity<BaseResponse<String>> confirmShipping(@PathVariable String id) {
+        ordersService.confirmShipping(id,StatusOrderEnum.SHIPPING) ;
+        String message = messageSource.getMessage(
+                "Order-shipping.message",
+                null,
+                LocaleContextHolder.getLocale()
+        );
+        return ResponseEntity.ok(BaseResponse.ofSuccess(message));
+    }
+
+
+    //http://localhost:8001/api/v1/orders/{id}/delivery-success
     @PutMapping("/{id}/delivery-success")
     public ResponseEntity<BaseResponse<String>> confirmDeliverySuccess(@PathVariable String id) {
         ordersService.confirmDeliverySuccess(id,StatusOrderEnum.DELIVERED) ;

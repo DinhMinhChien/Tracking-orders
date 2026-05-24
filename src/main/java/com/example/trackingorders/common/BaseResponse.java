@@ -36,7 +36,7 @@ public class BaseResponse<T> {
     public static <T> BaseResponse<List<T>> ofSuccess(Page<T> page) {
         BaseResponse<List<T>> response = new BaseResponse<>();
         response.data = page.getContent();
-        response.meta.page = page.getNumber();
+        response.meta.page = page.getNumber() + 1;
         response.meta.size = page.getSize();
         response.meta.total = page.getTotalElements();
         response.meta.code = HttpStatus.OK.value();

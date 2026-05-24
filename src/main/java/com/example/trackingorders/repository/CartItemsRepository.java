@@ -17,8 +17,15 @@ public interface CartItemsRepository extends JpaRepository<CartItems,String> {
     List<CartItems> findCartItemsByUsername(String username) ;
 
     @Modifying
-    @Query("update CartItems ci set ci.deleted = true where ci.products in :products and ci.carts.users = :user and ci.deleted = false ")
-    void removeCartItemsByProducts(List<Products> products, Users user);
+    @Query(value = """
+            update cart_items ci
+            join carts c on c.id = ci.cart_id
+            set ci.deleted = true
+            where ci.product_id in :productIds
+              and c.user_id = :userId
+              and ci.deleted = false
+            """, nativeQuery = true)
+    void removeCartItemsByProductIdsAndUserId(List<String> productIds, String userId);
 
     @Query("select ci from CartItems  ci join fetch ci.products p where ci.id = :id and ci.deleted = false ")
     Optional<CartItems> findWithProductsById(String id) ;

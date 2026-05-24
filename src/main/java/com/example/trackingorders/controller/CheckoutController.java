@@ -20,6 +20,7 @@ import java.util.List;
 public class CheckoutController {
 
     private final CheckoutService checkoutService ;
+
     //http://localhost:8001/api/v1/checkout/promotions-available
     @PostMapping("/promotions-available")
     public ResponseEntity<BaseResponse<List<PromotionsResponse>>> getPromotionAvailable(@RequestBody CheckoutSummaryRequest request) {

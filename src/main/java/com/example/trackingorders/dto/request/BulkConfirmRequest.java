@@ -1,6 +1,7 @@
 package com.example.trackingorders.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -14,6 +15,6 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class BulkConfirmRequest implements Serializable {
-    @NotBlank(message = "List orderIds is not null")
-    private List<String> orderIds;
+    @NotEmpty(message = "List orderIds is not empty")
+    private List<@NotBlank(message = "orderId is not null") String> orderIds;
 }

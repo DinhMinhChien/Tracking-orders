@@ -20,4 +20,5 @@ public interface OrdersService {
     void confirmDeliverySuccess(String id,StatusOrderEnum status);
     void confirmOrder(String id) ;
     void rejectOrder(String id,String reason) ;
+    void confirmShipping(String id , StatusOrderEnum status) ;
 }

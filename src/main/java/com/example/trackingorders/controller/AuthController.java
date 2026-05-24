@@ -22,6 +22,7 @@ public class AuthController {
     private final AuthService authService ;
     private final MessageSource messageSource ;
 
+    //http://localhost:8001/api/v1/auth/register
     @PostMapping("/register")
     public ResponseEntity<BaseResponse<String>> register(@RequestBody @Valid AuthRegisterRequest request) {
         authService.register(request) ;
@@ -31,7 +32,7 @@ public class AuthController {
                 null,
                 LocaleContextHolder.getLocale()
         );
-        return ResponseEntity.ok(BaseResponse.ofSuccess("Register.success")) ;
+        return ResponseEntity.ok(BaseResponse.ofSuccess(message)) ;
     }
 
 }

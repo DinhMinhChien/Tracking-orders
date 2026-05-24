@@ -80,10 +80,10 @@ public class PromotionServiceImplement implements PromotionService {
         BigDecimal discountAmount = BigDecimal.ZERO;
         String discountType = promotion.getDiscountType();
 
-        if ("percent".equalsIgnoreCase(discountType)) {
+        if ("PERCENTAGE".equalsIgnoreCase(discountType)) {
             BigDecimal discountValue = BigDecimal.valueOf(promotion.getDiscountValue());
             discountAmount = subTotal.multiply(discountValue).divide(BigDecimal.valueOf(100));
-        } else if ("fixed".equalsIgnoreCase(discountType)) {
+        } else if ("FIXED_AMOUNT".equalsIgnoreCase(discountType)) {
             discountAmount = new BigDecimal(promotion.getDiscountValue());
         }
 
@@ -120,9 +120,15 @@ public class PromotionServiceImplement implements PromotionService {
     }
 
     @Override
-    public void restorePromotion(Promotions promotion) {
+    public void restorePromotion(Orders order) {
+        Promotions promotion = order.getPromotions();
+        if (promotion == null) {
+            return;
+        }
+
         promotion.setUsagesLimit(promotion.getUsagesLimit()+1);
-        UserPromotions userPromotion = userPromotionsRepository.findByPromotions(promotion) ;
+        UserPromotions userPromotion = userPromotionsRepository.findByOrdersAndDeletedFalse(order)
+                .orElseThrow(() -> new BusinessException("User promotion not found for order")) ;
         userPromotion.setDeleted(true);
         userPromotionsRepository.save(userPromotion) ;
     }

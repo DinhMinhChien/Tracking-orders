@@ -1,6 +1,9 @@
 package com.example.trackingorders.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -15,11 +18,12 @@ import java.util.List;
 @AllArgsConstructor
 public class OrdersRequest implements Serializable {
 
-    @NotBlank(message = "Field productIds is not null")
-    private List<String> productIds ;
+    @NotEmpty(message = "productIds must not be null or empty")
+    private List<@NotBlank(message = "productId must not be blank") String> productIds;
 
-    @NotBlank(message = "Field quantities is not null")
-    private List<Integer> quantities ;
+    @NotEmpty(message = "quantities must not be null or empty")
+    private List<@NotNull(message = "quantity must not be null")
+    @Positive(message = "quantity must be greater than 0") Integer> quantities;
 
     @NotBlank(message = "Field promotionId is not null")
     private String promotionId ;
@@ -27,6 +31,6 @@ public class OrdersRequest implements Serializable {
     @NotBlank(message = "Field addressId is not null")
     private String addressId ;
 
-    @NotBlank(message = "Field isFromCart is not null")
+    @NotNull(message = "Field isFromCart is not null")
     private Boolean isFromCart ;
 }
